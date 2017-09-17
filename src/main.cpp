@@ -10,6 +10,7 @@
 #include "json.hpp"
 
 #include "spline.h"
+#include "statemachine.h"
 
 using namespace std;
 
@@ -161,9 +162,10 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 }
 
-int lane = 1;
 double ref_vel = 0;
-double target_vel = 49.5;
+double target_vel = 49.0;
+StateMachine state_machine;
+
 
 int main() {
   uWS::Hub h;
@@ -200,6 +202,7 @@ int main() {
   	map_waypoints_s.push_back(s);
   	map_waypoints_dx.push_back(d_x);
   	map_waypoints_dy.push_back(d_y);
+
   }
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -247,12 +250,41 @@ int main() {
             vector<double> ptsx;
             vector<double> ptsy;
 
-            if (ref_vel<target_vel){
-              ref_vel += 0.4;
+
+            double safe_dist = 80;
+            state_machine.set(car_s, car_d, sensor_fusion, safe_dist);
+            state_machine.change_state();
+            if (state_machine.state == "LCL"){
+              state_machine.lane -= 1;
             }
-            else{
-              ref_vel -= 0.2;
+            else if(state_machine.state == "LCR"){
+              state_machine.lane += 1;
             }
+            if (state_machine.lane < 0){
+              state_machine.lane = 0;
+            }
+            else if (state_machine.lane > 2){
+              state_machine.lane = 2;
+            }
+
+            bool car_in_front = state_machine.check_car_in_front();
+
+            if (!car_in_front){
+              if (ref_vel<target_vel){
+                ref_vel += 0.8;
+              }
+            }
+            else if(car_in_front){
+              cout << "front vehicle speed: " << state_machine.front_vehicle_speed <<  endl;
+              if (ref_vel <= state_machine.front_vehicle_speed){
+                ref_vel += 0.8;
+              }
+              else {
+                ref_vel -= 0.8;
+              }
+            }
+            double lane = state_machine.lane;
+
 
             // Save states
             double ref_x = car_x;
@@ -288,9 +320,10 @@ int main() {
             }
 
             // Add sparse points along the lane
-            vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            double wp_dist = 45;
+            vector<double> next_wp0 = getXY(car_s+1*wp_dist,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s+2*wp_dist,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s+3*wp_dist,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             ptsx.push_back(next_wp0[0]);
             ptsx.push_back(next_wp1[0]);
@@ -346,6 +379,7 @@ int main() {
               next_x_vals.push_back(x_point);
               next_y_vals.push_back(y_point);
             }
+
 
 
             msgJson["next_x"] = next_x_vals;
