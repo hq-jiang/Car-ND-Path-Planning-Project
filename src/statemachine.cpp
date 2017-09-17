@@ -27,20 +27,20 @@ void StateMachine::change_state(){
   bool left_free;
   if (lane>=1){
     left_free = check_left_free();
-    /*if (left_free){
+    if (left_free){
     }
     else {
       cout << "left occupied" << endl;
-    }*/
+    }
   }
   bool right_free;
   if (lane<=1){
     right_free = check_right_free();
-    /*if (right_free){
+    if (right_free){
     }
     else {
       cout << "right occupied" << endl;
-    }*/
+    }
   }
   //bool left_free = check_left_free();
   //bool right_free = check_left_free();
